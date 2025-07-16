@@ -28,8 +28,9 @@ async def insert_task(
     action: str,
     task: Optional[str],
     duedate: Optional[str],
+    duetime: Optional[str],
     note: Optional[str],
-    userId: int,
+    userId: int
 ):  
     connection_string = DATABASE_URL
     try:
@@ -40,14 +41,26 @@ async def insert_task(
             if duedate:
                 parsed_date = datetime.datetime.strptime(duedate, "%Y-%m-%d").date()
 
+            # Convert the duetime string (HH:MM) to datetime.time
+            parsed_time = None
+            if duetime:
+                try:
+                    parsed_time = datetime.datetime.strptime(duetime, "%H:%M").time()
+                except ValueError:
+                    print(f"Invalid time format: {duetime}, expected HH:MM")
+                    parsed_time = None
+
+            print(f"Inserting task: {task}, Due date: {parsed_date}, Time: {parsed_time}, Note: {note}, User ID: {userId}")
+
             await conn.execute(
                 '''
-                INSERT INTO tasks (action, task, duedate, note,userId)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO tasks (action, task, duedate, duetime, note, userId)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 ''',
                 action,
                 task,
                 parsed_date,
+                parsed_time,
                 note,
                 userId
             )
@@ -55,5 +68,3 @@ async def insert_task(
         print("Task inserted successfully.")
     except Exception as e:
         print(f"Insert failed: {e}")
-
-

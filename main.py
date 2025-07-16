@@ -27,9 +27,10 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     response = await get_ai_response(text)
     if response:
-        action, task, duedate, note = await parse_ai_response(response)
+        action, task, duedate, duetime, note = await parse_ai_response(response)
         if action:
-            await insert_task(action, task, duedate, note, userId)
+            print("duetime" + duetime)
+            await insert_task(action, task, duedate, duetime, note, userId)
 
         await update.message.reply_text(response)
     else:
