@@ -2,7 +2,7 @@ import os
 import asyncio
 from datetime import datetime, timedelta
 from aiHandler import parse_ai_response, get_ai_response
-from dbHandler import test_database, insert_task, get_upcoming_tasks, mark_task_alerted,get_tomorrow_tasks
+from dbHandler import test_database, insert_task, get_upcoming_tasks, mark_task_alerted,get_tomorrow_tasks, get_all_tasks
 
 from dotenv import load_dotenv
 from telegram import Update
@@ -49,8 +49,12 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if response:
         action, task, duedate, duetime, note = await parse_ai_response(response)
         print(f"Action: {action}, Task: {task}, Due date: {duedate}, Due time: {duetime}, Note: {note}")
-        if action:
+        if action == 'add':
             await insert_task(action, task, duedate, duetime, note, userId)
+        elif action == 'list':
+            tasks = await get_all_tasks(userId)
+            await update.message.reply_text(tasks)
+            return
 
         await update.message.reply_text(response)
     else:
@@ -78,7 +82,7 @@ async def check_upcoming_tasks(app):
                 minutes_left = int((time_left.total_seconds() % 3600) / 60)
                 
                 # Create alert message
-                alert_message = f"🔔 Task Reminder!\n\n"
+                alert_message = f"🚨 Deadline Approach!\n\n"
                 alert_message += f"📝 Task: {task_name}\n"
                 alert_message += f"⏰ Due: {due_date} at {due_time}\n"
                 alert_message += f"⏳ Time left: {hours_left}h {minutes_left}m\n"

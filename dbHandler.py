@@ -35,8 +35,6 @@ async def insert_task(
     connection_string = DATABASE_URL
 
     try:
-
-
         pool = await asyncpg.create_pool(connection_string)
         async with pool.acquire() as conn:
             # Convert the duedate string (YYYY-MM-DD) to datetime.date
@@ -146,3 +144,37 @@ async def get_tomorrow_tasks():
     except Exception as e:
         print(f"Failed to get tomorrow's tasks: {e}")
         return []
+    
+async def get_all_tasks(userId):
+    """Get all upcoming tasks for a user"""
+    connection_string = DATABASE_URL
+    try:
+        pool = await asyncpg.create_pool(connection_string)
+        async with pool.acquire() as conn:
+            # Get current date to filter out past tasks
+            today = datetime.datetime.now().date()
+            
+            # Query for all upcoming tasks for the specific user
+            tasks = await conn.fetch(
+                '''
+                SELECT id, task, note, userid, duedate, duetime, alerted
+                FROM tasks 
+                WHERE action = 'add' 
+                AND userid = $1
+                AND (duedate >= $2 OR duedate IS NULL)
+                ORDER BY 
+                    CASE WHEN duedate IS NULL THEN 1 ELSE 0 END,
+                    duedate ASC, 
+                    CASE WHEN duetime IS NULL THEN 1 ELSE 0 END,
+                    duetime ASC
+                ''',
+                userId,
+                today
+            )
+
+        await pool.close()
+        return tasks
+    except Exception as e:
+        print(f"Failed to get all tasks for user {userId}: {e}")
+        return []
+
