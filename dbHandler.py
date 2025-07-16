@@ -68,3 +68,51 @@ async def insert_task(
         print("Task inserted successfully.")
     except Exception as e:
         print(f"Insert failed: {e}")
+
+async def get_upcoming_tasks():
+    """Get tasks that are due within the next 2 hours and haven't been alerted yet"""
+    connection_string = DATABASE_URL
+    try:
+        pool = await asyncpg.create_pool(connection_string)
+        async with pool.acquire() as conn:
+            # Get current time and 2 hours from now
+            now = datetime.datetime.now()
+            two_hours_later = now + datetime.timedelta(hours=2)
+            
+            # Query for tasks due within the next 2 hours that haven't been alerted
+            tasks = await conn.fetch(
+                '''
+                SELECT id, task, note, userid, duedate, duetime 
+                FROM tasks 
+                WHERE action = 'add' 
+                AND duedate IS NOT NULL 
+                AND duetime IS NOT NULL
+                AND (duedate::timestamp + duetime::time) BETWEEN $1 AND $2
+                AND (alerted IS NULL OR alerted = false)
+                ''',
+                now,
+                two_hours_later
+            )
+
+            
+
+
+        await pool.close()
+        return tasks
+    except Exception as e:
+        print(f"Failed to get upcoming tasks: {e}")
+        return []
+
+async def mark_task_alerted(task_id: int):
+    """Mark a task as alerted to avoid duplicate notifications"""
+    connection_string = DATABASE_URL
+    try:
+        pool = await asyncpg.create_pool(connection_string)
+        async with pool.acquire() as conn:
+            await conn.execute(
+                'UPDATE tasks SET alerted = true WHERE id = $1',
+                task_id
+            )
+        await pool.close()
+    except Exception as e:
+        print(f"Failed to mark task as alerted: {e}")
