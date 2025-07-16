@@ -151,25 +151,21 @@ async def get_all_tasks(userId):
     try:
         pool = await asyncpg.create_pool(connection_string)
         async with pool.acquire() as conn:
-            # Get current date to filter out past tasks
-            today = datetime.datetime.now().date()
-            
-            # Query for all upcoming tasks for the specific user
+
             tasks = await conn.fetch(
                 '''
-                SELECT id, task, note, userid, duedate, duetime, alerted
+                SELECT id, task, note, userid, duedate, duetime, alerted, completed
                 FROM tasks 
                 WHERE action = 'add' 
                 AND userid = $1
-                AND (duedate >= $2 OR duedate IS NULL)
+                AND (completed IS NULL OR completed = false)
                 ORDER BY 
                     CASE WHEN duedate IS NULL THEN 1 ELSE 0 END,
                     duedate ASC, 
                     CASE WHEN duetime IS NULL THEN 1 ELSE 0 END,
                     duetime ASC
                 ''',
-                userId,
-                today
+                userId
             )
 
         await pool.close()
@@ -178,3 +174,65 @@ async def get_all_tasks(userId):
         print(f"Failed to get all tasks for user {userId}: {e}")
         return []
 
+
+async def update_task_completion(task_id: int, completed: bool = True):
+    """Mark a task as completed or incomplete"""
+    connection_string = DATABASE_URL
+    try:
+        pool = await asyncpg.create_pool(connection_string)
+        async with pool.acquire() as conn:
+            await conn.execute(
+                'UPDATE tasks SET completed = $1 WHERE id = $2',
+                completed,
+                task_id
+            )
+        await pool.close()
+        print(f"Task {task_id} marked as {'completed' if completed else 'incomplete'}")
+        return True
+    except Exception as e:
+        print(f"Failed to update task completion: {e}")
+        return False
+
+async def get_user_tasks_for_selection(userId):
+    """Get incomplete tasks for a user to allow selection"""
+    connection_string = DATABASE_URL
+    try:
+        pool = await asyncpg.create_pool(connection_string)
+        async with pool.acquire() as conn:
+            tasks = await conn.fetch(
+                '''
+                SELECT id, task, duedate, duetime
+                FROM tasks 
+                WHERE action = 'add' 
+                AND userid = $1
+                AND (completed IS NULL OR completed = false)
+                ORDER BY 
+                    CASE WHEN duedate IS NULL THEN 1 ELSE 0 END,
+                    duedate ASC, 
+                    CASE WHEN duetime IS NULL THEN 1 ELSE 0 END,
+                    duetime ASC
+                ''',
+                userId
+            )
+        await pool.close()
+        return tasks
+    except Exception as e:
+        print(f"Failed to get tasks for selection: {e}")
+        return []
+    
+async def delete_task(task_id: int):
+    """Delete a task"""
+    connection_string = DATABASE_URL
+    try:
+        pool = await asyncpg.create_pool(connection_string)
+        async with pool.acquire() as conn:
+            await conn.execute(
+                'DELETE FROM tasks WHERE id = $1',
+                task_id
+            )
+        await pool.close()
+        print(f"Task {task_id} deleted successfully")
+        return True
+    except Exception as e:
+        print(f"Failed to delete task: {e}")
+        return False

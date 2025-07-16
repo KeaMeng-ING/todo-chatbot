@@ -24,6 +24,8 @@ Always follow these rules:
 
 - Allowed actions: add, list, done, delete, update.
 - If user ask for all the tasks, the action should be "list"
+- If the user asks to mark a task as done, use "update" action.
+- If the user say delete, use "delete" action without needed further detail.
 - Due date must be in YYYY-MM-DD format or `null` if none.
 - Time must be in HH:MM format (24-hour) or `null` if none.
 - If task, due date, time, or note are missing, write `null`.

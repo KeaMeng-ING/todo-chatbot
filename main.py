@@ -2,7 +2,7 @@ import os
 import asyncio
 from datetime import datetime, timedelta
 from aiHandler import parse_ai_response, get_ai_response
-from dbHandler import test_database, insert_task, get_upcoming_tasks, mark_task_alerted,get_tomorrow_tasks, get_all_tasks
+from dbHandler import test_database, insert_task, get_upcoming_tasks, mark_task_alerted,get_tomorrow_tasks, get_all_tasks, update_task_completion, get_user_tasks_for_selection, delete_task
 
 from dotenv import load_dotenv
 from telegram import Update
@@ -45,6 +45,47 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("I can only process text messages. Please send me a text message with your task.")
         return
 
+    if 'pending_completion' in context.user_data:
+        try:
+            task_number = int(text.strip())
+            pending_tasks = context.user_data['pending_completion']
+            
+            if 1 <= task_number <= len(pending_tasks):
+                selected_task = pending_tasks[task_number - 1]
+                task_id = selected_task['id']
+                task_name = selected_task['task']
+                
+                # Check if this is for completion or deletion
+                if context.user_data.get('action_type') == 'delete':
+                    # Delete the task
+                    success = await delete_task(task_id)
+                    
+                    if success:
+                        await update.message.reply_text(f"🗑️ Task deleted: {task_name}")
+                    else:
+                        await update.message.reply_text("❌ Failed to delete task. Please try again.")
+                else:
+                    # Mark task as completed (existing logic)
+                    success = await update_task_completion(task_id, True)
+                    
+                    if success:
+                        await update.message.reply_text(f"✅ Task completed: {task_name}")
+                    else:
+                        await update.message.reply_text("❌ Failed to mark task as completed. Please try again.")
+                
+                # Clear pending completion
+                del context.user_data['pending_completion']
+                if 'action_type' in context.user_data:
+                    del context.user_data['action_type']
+                return
+            else:
+                await update.message.reply_text(f"❌ Invalid number. Please choose between 1 and {len(pending_tasks)}.")
+                return
+                
+        except ValueError:
+            await update.message.reply_text("❌ Please enter a valid number.")
+            return
+
     response = await get_ai_response(text)
     if response:
         action, task, duedate, duetime, note = await parse_ai_response(response)
@@ -53,7 +94,101 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await insert_task(action, task, duedate, duetime, note, userId)
         elif action == 'list':
             tasks = await get_all_tasks(userId)
-            await update.message.reply_text(tasks)
+            
+            # Format tasks into a readable message
+            if not tasks:
+                message = "📋 You have no upcoming tasks!"
+            else:
+                message = f"📋 Your Tasks ({len(tasks)} total):\n\n"
+                
+                for i, task in enumerate(tasks, 1):
+                    task_name = task['task']
+                    due_date = task['duedate']
+                    due_time = task['duetime']
+                    note = task['note']
+                    complete = task['completed']
+                    
+                    message += f"{i}. 📝 {task_name}\n"
+                    if complete:
+                        message += "    ✅ Completed\n"
+                    else:
+                        message += "    ⏳ Incomplete\n"
+
+                    if due_date:
+                        message += f"    📅 {due_date}"
+                        if due_time:
+                            message += f" at {due_time}"
+                        message += "\n"
+                    
+                    if note:
+                        message += f"    📄 {note}\n"
+                    
+                    message += "\n"
+            
+            await update.message.reply_text(message)
+            return
+        
+        elif action == 'update':
+            # Get user's incomplete tasks
+            user_tasks = await get_user_tasks_for_selection(userId)
+            
+            if not user_tasks:
+                await update.message.reply_text("📋 You have no incomplete tasks to mark as done!")
+                return
+            
+            # Create a message listing tasks with numbers
+            message = "📋 Which task would you like to mark as completed? Reply with the number:\n\n"
+            
+            for i, task in enumerate(user_tasks, 1):
+                task_name = task['task']
+                due_date = task['duedate']
+                due_time = task['duetime']
+                
+                message += f"{i}. 📝 {task_name}"
+                if due_date:
+                    message += f" (📅 {due_date}"
+                    if due_time:
+                        message += f" at {due_time}"
+                    message += ")"
+                message += "\n"
+            
+            message += "\nJust reply with the number (e.g., '1', '2', etc.)"
+            await update.message.reply_text(message)
+            
+            # Store user tasks in context for the next message
+            context.user_data['pending_completion'] = user_tasks
+            return
+        
+        elif action == 'delete':
+            # Get user's tasks for deletion
+            user_tasks = await get_user_tasks_for_selection(userId)
+            
+            if not user_tasks:
+                await update.message.reply_text("📋 You have no tasks to delete!")
+                return
+            
+            # Create a message listing tasks with numbers
+            message = "🗑️ Which task would you like to delete? Reply with the number:\n\n"
+            
+            for i, task in enumerate(user_tasks, 1):
+                task_name = task['task']
+                due_date = task['duedate']
+                due_time = task['duetime']
+                
+                message += f"{i}. 📝 {task_name}"
+                if due_date:
+                    message += f" (📅 {due_date}"
+                    if due_time:
+                        message += f" at {due_time}"
+                    message += ")"
+                message += "\n"
+            
+            message += "\n⚠️ This action cannot be undone. Just reply with the number (e.g., '1', '2', etc.)"
+            await update.message.reply_text(message)
+            
+            # Store user tasks in context for the next message
+            context.user_data['pending_completion'] = user_tasks
+            context.user_data['action_type'] = 'delete'
             return
 
         await update.message.reply_text(response)

@@ -13,6 +13,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 async def get_ai_response(text: str) -> str:
     try:
+        # Remove any extra parameters that might be causing issues
         client = Groq(api_key=GROQ_API_KEY)
         completion = client.chat.completions.create(
             messages=[
@@ -21,7 +22,7 @@ async def get_ai_response(text: str) -> str:
             ],
             model="llama-3.3-70b-versatile",
             temperature=0.7,
-            max_completion_tokens=1024,
+            max_tokens=1024,  # Changed from max_completion_tokens
             top_p=1,
             stream=False,
             stop=None,
