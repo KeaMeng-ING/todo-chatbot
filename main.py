@@ -22,27 +22,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = """
         Hello! I'm your To-Do assistant. Here's what I can do:
 
-        📝 **Add tasks**: "Add call mom tomorrow at 2pm"
-        📋 **List tasks**: "Show my tasks" 
-        ✅ **Mark done**: "Mark task done"
-        🗑️ **Delete tasks**: "Delete task"
+        📝 Add tasks: "Add call mom tomorrow at 2pm"
+        📋 List tasks: "Show my tasks" 
+        ✅ Mark done: "Mark task done"
+        🗑️ Delete tasks: "Delete task"
 
         I'll also send you:
-        🔔 **2-hour alerts** for upcoming tasks
-        🌅 **Daily reminders** at 9 PM for tomorrow's tasks
+        🔔 2-hour alerts for upcoming tasks
+        🌅 Daily reminders at 9 PM for tomorrow's tasks
 
         Just tell me what you need to do!
     """
     await update.message.reply_text(welcome_message)
 
-# async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-#     await update.message.reply_text(
-#         "Send me natural language like:\n"
-#         "• 'Add meeting tomorrow at 3pm'\n"
-#         "• 'Remind me to call John on Friday'\n"
-#         "• 'Show my tasks'\n"
-#         "• 'Mark done: call mom'"
-#     )
 
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     userId = update.message.from_user.id
@@ -56,9 +48,8 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     response = await get_ai_response(text)
     if response:
         action, task, duedate, duetime, note = await parse_ai_response(response)
+        print(f"Action: {action}, Task: {task}, Due date: {duedate}, Due time: {duetime}, Note: {note}")
         if action:
-            if duetime:
-                print("duetime: " + duetime)
             await insert_task(action, task, duedate, duetime, note, userId)
 
         await update.message.reply_text(response)

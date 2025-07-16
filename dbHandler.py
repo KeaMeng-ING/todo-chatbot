@@ -33,7 +33,10 @@ async def insert_task(
     userId: int
 ):  
     connection_string = DATABASE_URL
+
     try:
+
+
         pool = await asyncpg.create_pool(connection_string)
         async with pool.acquire() as conn:
             # Convert the duedate string (YYYY-MM-DD) to datetime.date
@@ -50,8 +53,7 @@ async def insert_task(
                     print(f"Invalid time format: {duetime}, expected HH:MM")
                     parsed_time = None
 
-            print(f"Inserting task: {task}, Due date: {parsed_date}, Time: {parsed_time}, Note: {note}, User ID: {userId}")
-
+        
             await conn.execute(
                 '''
                 INSERT INTO tasks (action, task, duedate, duetime, note, userId)

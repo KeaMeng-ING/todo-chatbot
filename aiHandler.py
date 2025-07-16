@@ -47,27 +47,29 @@ async def get_ai_response(text: str) -> str:
 
 async def parse_ai_response(response: str) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:
     patterns = {
-        "action": re.compile(r"^Action:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
-        "task": re.compile(r"^Task:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
-        "duedate": re.compile(r"^Due date:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
-        "note": re.compile(r"^Note:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
-        "time": re.compile(r"^Time:\s*(.+)$", re.IGNORECASE | re.MULTILINE),
+        "action": re.compile(r"Action:\s*(.+)", re.IGNORECASE),
+        "task": re.compile(r"Task:\s*(.+)", re.IGNORECASE),
+        "duedate": re.compile(r"Due date:\s*(.+)", re.IGNORECASE),
+        "time": re.compile(r"Time:\s*(.+)", re.IGNORECASE),
+        "note": re.compile(r"Note:\s*(.+)", re.IGNORECASE),
     }
 
-    def extract_field(field_name: str) -> Optional[str]:
-        match = patterns[field_name].search(response)
+    def extract_field(field: str) -> Optional[str]:
+        match = patterns[field].search(response)
         if match:
             val = match.group(1).strip()
-            return val if val.lower() != "null" else None
+            if val.lower() == "null":
+                return None
+            return val
         return None
 
     action = extract_field("action")
     task = extract_field("task")
     duedate = extract_field("duedate")
-    note = extract_field("note")
     duetime = extract_field("time")
+    note = extract_field("note")
 
-    # Basic validation: action is required, others can be None
+    # If required, add validation: return None tuple if action is missing
     if not action:
         return None, None, None, None, None
 
