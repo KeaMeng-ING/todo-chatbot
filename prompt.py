@@ -16,11 +16,11 @@ Current information:
 Always follow these rules:
 - If the user's intent is clear and complete, respond ONLY with a task summary in this exact plain-text format:
 
-  Action: add
-  Task: Call mom
-  Due date: 2025-07-16
-  Time: 14:00
-  Note: Ask about her trip
+  👨‍💻 Action: add
+  📝 Task: Call mom
+  🗓️ Due date: 2025-07-16
+  ⏱️ Time: 14:00
+  🗒️ Note: Ask about her trip
 
 - Allowed actions: add, list, done, delete, update.
 - Due date must be in YYYY-MM-DD format or `null` if none.

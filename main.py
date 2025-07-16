@@ -2,7 +2,7 @@ import os
 import asyncio
 from datetime import datetime, timedelta
 from aiHandler import parse_ai_response, get_ai_response
-from dbHandler import test_database, insert_task, get_upcoming_tasks, mark_task_alerted
+from dbHandler import test_database, insert_task, get_upcoming_tasks, mark_task_alerted,get_tomorrow_tasks
 
 from dotenv import load_dotenv
 from telegram import Update
@@ -19,7 +19,30 @@ load_dotenv()
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hello! I'm your To-Do assistant. Send me tasks to manage!")
+    welcome_message = """
+        Hello! I'm your To-Do assistant. Here's what I can do:
+
+        📝 **Add tasks**: "Add call mom tomorrow at 2pm"
+        📋 **List tasks**: "Show my tasks" 
+        ✅ **Mark done**: "Mark task done"
+        🗑️ **Delete tasks**: "Delete task"
+
+        I'll also send you:
+        🔔 **2-hour alerts** for upcoming tasks
+        🌅 **Daily reminders** at 9 PM for tomorrow's tasks
+
+        Just tell me what you need to do!
+    """
+    await update.message.reply_text(welcome_message)
+
+# async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#     await update.message.reply_text(
+#         "Send me natural language like:\n"
+#         "• 'Add meeting tomorrow at 3pm'\n"
+#         "• 'Remind me to call John on Friday'\n"
+#         "• 'Show my tasks'\n"
+#         "• 'Mark done: call mom'"
+#     )
 
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     userId = update.message.from_user.id
@@ -96,6 +119,76 @@ async def check_upcoming_tasks(app):
         print("Waiting 1 hour before next check...")
         await asyncio.sleep(7200)
 
+async def send_daily_reminders(app):
+    """Send daily reminders at 21:00 about tomorrow's tasks"""
+    while True:
+        try:
+            now = datetime.now()
+            
+            # Calculate next 21:00
+            target_time = now.replace(hour=21, minute=0, second=0, microsecond=0)
+            # target_time = now + timedelta(seconds=10)
+
+            if now >= target_time:
+                # If it's already past 21:00 today, schedule for tomorrow
+                target_time += timedelta(days=1)
+            
+            # Calculate sleep time until next 21:00
+            sleep_seconds = (target_time - now).total_seconds()
+            
+            print(f"Daily reminder scheduled for {target_time}. Sleeping for {sleep_seconds/3600:.2f} hours...")
+            await asyncio.sleep(sleep_seconds)
+            
+            # Send reminders
+            print("Sending daily reminders for tomorrow's tasks...")
+            tomorrow_tasks = await get_tomorrow_tasks()
+            
+            # Group tasks by user
+            user_tasks = {}
+            for task in tomorrow_tasks:
+                user_id = task['userid']
+                if user_id not in user_tasks:
+                    user_tasks[user_id] = []
+                user_tasks[user_id].append(task)
+            
+            # Send reminders to each user
+            for user_id, tasks in user_tasks.items():
+                tomorrow_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+                
+                # Create reminder message
+                reminder_message = f"🌅 Good Evening! Here are your tasks for tomorrow ({tomorrow_date}):\n\n"
+                
+                for i, task in enumerate(tasks, 1):
+                    task_name = task['task']
+                    note = task['note']
+                    due_time = task['duetime']
+                    
+                    reminder_message += f"{i}. 📝 {task_name}\n"
+                    if due_time:
+                        reminder_message += f"   ⏰ {due_time}\n"
+                    if note:
+                        reminder_message += f"   📄 {note}\n"
+                    reminder_message += "\n"
+                
+                reminder_message += "Have a great evening! 🌙"
+                
+                # Send reminder to user
+                try:
+                    await app.bot.send_message(
+                        chat_id=user_id,
+                        text=reminder_message
+                    )
+                    print(f"Daily reminder sent to user {user_id} with {len(tasks)} tasks")
+                except Exception as send_error:
+                    print(f"Failed to send daily reminder to user {user_id}: {send_error}")
+            
+            if not tomorrow_tasks:
+                print("No tasks due tomorrow.")
+                
+        except Exception as e:
+            print(f"Error in daily reminder system: {e}")
+            await asyncio.sleep(3600)  # Wait 1 hour before retrying
+
 async def main():
     # Test database connection first
     # await test_database()
@@ -116,12 +209,16 @@ async def main():
     print("Starting background task checker...")
     alert_task = asyncio.create_task(check_upcoming_tasks(app))
     
+    print("Starting daily reminder system...")
+    daily_reminder_task = asyncio.create_task(send_daily_reminders(app))
     # Keep the bot running
     try:
         await asyncio.Event().wait()
     except KeyboardInterrupt:
         print("Bot stopped by user")
         alert_task.cancel()
+        daily_reminder_task.cancel()
+        await asyncio.gather(alert_task, daily_reminder_task, return_exceptions=True)
     finally:
         # Clean shutdown
         await app.updater.stop()

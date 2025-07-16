@@ -116,3 +116,31 @@ async def mark_task_alerted(task_id: int):
         await pool.close()
     except Exception as e:
         print(f"Failed to mark task as alerted: {e}")
+
+async def get_tomorrow_tasks():
+    """Get tasks that are due tomorrow"""
+    connection_string = DATABASE_URL
+    try:
+        pool = await asyncpg.create_pool(connection_string)
+        async with pool.acquire() as conn:
+            # Get tomorrow's date
+            tomorrow = (datetime.datetime.now() + datetime.timedelta(days=1)).date()
+            print(f"Fetching tasks due tomorrow: {tomorrow}")
+            # Query for tasks due tomorrow
+            tasks = await conn.fetch(
+                '''
+                SELECT task, note, userid, duedate, duetime 
+                FROM tasks 
+                WHERE action = 'add' 
+                AND duedate = $1
+                ORDER BY duetime ASC
+                ''',
+                tomorrow
+            )
+
+
+        await pool.close()
+        return tasks
+    except Exception as e:
+        print(f"Failed to get tomorrow's tasks: {e}")
+        return []
